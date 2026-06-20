@@ -158,15 +158,42 @@
       toggleBtn.classList.remove('cancel');
     }
 
+    // One persistent AudioContext, reused for every beep. Creating a fresh
+    // context per alarm is unreliable on mobile (Android/iOS): a new context
+    // starts suspended and takes ~100-200ms to actually run, so events
+    // scheduled at currentTime get dropped or clipped — which drops the first
+    // beep and cuts off the next. Reusing a context unlocked on a user gesture
+    // avoids that.
+    let audioCtx = null;
+
+    function getCtx() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioCtx;
+    }
+
+    // Resume the shared context. Call on a user gesture (Set Alarm tap) so the
+    // browser permits audio later, and again just before beeping.
+    function unlockAudio() {
+      try {
+        const ctx = getCtx();
+        if (ctx.state === 'suspended') return ctx.resume();
+      } catch (e) { /* ignore */ }
+      return Promise.resolve();
+    }
+
     // Three short beeps in rapid succession using the Web Audio API.
     function beep() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = getCtx();
+
+      const playTones = () => {
         const count = 3;
-        const dur = 0.15;   // length of each beep
-        const gap = 0.08;   // silence between beeps
+        const dur = 0.15;    // length of each beep
+        const gap = 0.1;     // silence between beeps
+        const lead = 0.08;   // headroom so the context is running before beep 1
         for (let i = 0; i < count; i++) {
-          const start = ctx.currentTime + i * (dur + gap);
+          const start = ctx.currentTime + lead + i * (dur + gap);
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
@@ -177,8 +204,17 @@
           gain.gain.exponentialRampToValueAtTime(1.0, start + 0.02); // full level; user controls loudness via device volume
           gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
           osc.start(start);
-          osc.stop(start + dur + 0.02);
-          if (i === count - 1) osc.onended = () => ctx.close();
+          osc.stop(start + dur + 0.05);
+        }
+      };
+
+      // The context may have been suspended while the tab was idle; resume
+      // first, then schedule once it is actually running so nothing is clipped.
+      try {
+        if (ctx.state === 'suspended') {
+          ctx.resume().then(playTones).catch(playTones);
+        } else {
+          playTones();
         }
       } catch (e) {
         console.error('Beep failed:', e);
@@ -197,12 +233,9 @@
         return;
       }
 
-      // Resume audio on this user gesture so the beep is allowed to play later.
-      try {
-        const warm = new (window.AudioContext || window.webkitAudioContext)();
-        if (warm.state === 'suspended') warm.resume();
-        warm.close();
-      } catch (e) { /* ignore */ }
+      // Unlock the shared audio context on this user gesture so the beep is
+      // allowed to play later (required by mobile browsers).
+      unlockAudio();
 
       targetH = h; targetM = m; targetS = s;
       hh.value = pad(h); mm.value = pad(m); ss.value = pad(s);
