@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beep Me</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --accent: #38bdf8;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .card {
+      background: var(--panel);
+      padding: 2rem 2.5rem;
+      border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      width: min(92vw, 420px);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.5rem;
+      letter-spacing: 0.02em;
+    }
+    .clock {
+      font-size: 2.75rem;
+      font-variant-numeric: tabular-nums;
+      margin: 1rem 0 1.5rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .inputs {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .field { display: flex; flex-direction: column; }
+    .field label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .field input {
+      width: 70px;
+      padding: 0.6rem;
+      font-size: 1.5rem;
+      text-align: center;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: #0f172a;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .field input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    .colon { font-size: 1.5rem; padding-bottom: 0.65rem; color: var(--muted); }
+    button {
+      width: 100%;
+      padding: 0.85rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: var(--accent);
+      color: #06283d;
+      transition: filter 0.15s ease;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.cancel { background: #ef4444; color: #fff; }
+    .status {
+      margin-top: 1rem;
+      min-height: 1.25rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+    .status.active { color: var(--accent); }
+    .status.ringing { color: #fbbf24; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⏰ Beep Me</h1>
+    <div class="clock" id="clock">--:--:--</div>
+
+    <div class="inputs">
+      <div class="field">
+        <label for="hh">Hour</label>
+        <input id="hh" type="number" min="0" max="23" value="07" />
+      </div>
+      <span class="colon">:</span>
+      <div class="field">
+        <label for="mm">Min</label>
+        <input id="mm" type="number" min="0" max="59" value="00" />
+      </div>
+      <span class="colon">:</span>
+      <div class="field">
+        <label for="ss">Sec</label>
+        <input id="ss" type="number" min="0" max="59" value="00" />
+      </div>
+    </div>
+
+    <button id="toggle">Set Alarm</button>
+    <div class="status" id="status">No alarm set</div>
+  </div>
+
+  <script>
+    const clockEl = document.getElementById('clock');
+    const statusEl = document.getElementById('status');
+    const toggleBtn = document.getElementById('toggle');
+    const hh = document.getElementById('hh');
+    const mm = document.getElementById('mm');
+    const ss = document.getElementById('ss');
+
+    let alarmSet = false;
+    let targetH, targetM, targetS;
+    let lastBeepSecond = -1; // guard against firing twice in the same second
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    function tick() {
+      const now = new Date();
+      const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+      clockEl.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+
+      if (alarmSet && h === targetH && m === targetM && s === targetS) {
+        const key = now.getFullYear() * 1e6 + now.getMonth() * 1e4 + now.getDate() * 100 + s;
+        if (key !== lastBeepSecond) {
+          lastBeepSecond = key;
+          triggerAlarm();
+        }
+      }
+    }
+
+    function triggerAlarm() {
+      beep();
+      alarmSet = false; // auto turn off after a single beep
+      statusEl.textContent = '🔔 Alarm! Beeped once and turned off.';
+      statusEl.className = 'status ringing';
+      toggleBtn.textContent = 'Set Alarm';
+      toggleBtn.classList.remove('cancel');
+    }
+
+    // Single short beep using the Web Audio API.
+    function beep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const t = ctx.currentTime;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+        osc.start(t);
+        osc.stop(t + 0.62);
+        osc.onended = () => ctx.close();
+      } catch (e) {
+        console.error('Beep failed:', e);
+      }
+    }
+
+    function setAlarm() {
+      const h = parseInt(hh.value, 10);
+      const m = parseInt(mm.value, 10);
+      const s = parseInt(ss.value, 10);
+
+      if ([h, m, s].some(Number.isNaN) ||
+          h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) {
+        statusEl.textContent = 'Please enter a valid time.';
+        statusEl.className = 'status';
+        return;
+      }
+
+      // Resume audio on this user gesture so the beep is allowed to play later.
+      try {
+        const warm = new (window.AudioContext || window.webkitAudioContext)();
+        if (warm.state === 'suspended') warm.resume();
+        warm.close();
+      } catch (e) { /* ignore */ }
+
+      targetH = h; targetM = m; targetS = s;
+      hh.value = pad(h); mm.value = pad(m); ss.value = pad(s);
+      alarmSet = true;
+      lastBeepSecond = -1;
+      statusEl.textContent = `Alarm set for ${pad(h)}:${pad(m)}:${pad(s)}`;
+      statusEl.className = 'status active';
+      toggleBtn.textContent = 'Cancel Alarm';
+      toggleBtn.classList.add('cancel');
+    }
+
+    function cancelAlarm() {
+      alarmSet = false;
+      statusEl.textContent = 'Alarm canceled';
+      statusEl.className = 'status';
+      toggleBtn.textContent = 'Set Alarm';
+      toggleBtn.classList.remove('cancel');
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      if (alarmSet) cancelAlarm();
+      else setAlarm();
+    });
+
+    tick();
+    setInterval(tick, 250);
+  </script>
+</body>
+</html>
