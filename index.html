@@ -152,29 +152,34 @@
     function triggerAlarm() {
       beep();
       alarmSet = false; // auto turn off after a single beep
-      statusEl.textContent = '🔔 Alarm! Beeped once and turned off.';
+      statusEl.textContent = '🔔 Alarm! Beeped 3 times and turned off.';
       statusEl.className = 'status ringing';
       toggleBtn.textContent = 'Set Alarm';
       toggleBtn.classList.remove('cancel');
     }
 
-    // Single short beep using the Web Audio API.
+    // Three short beeps in rapid succession using the Web Audio API.
     function beep() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = 880;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        const t = ctx.currentTime;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(1.0, t + 0.02); // full level; user controls loudness via device volume
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-        osc.start(t);
-        osc.stop(t + 0.62);
-        osc.onended = () => ctx.close();
+        const count = 3;
+        const dur = 0.15;   // length of each beep
+        const gap = 0.08;   // silence between beeps
+        for (let i = 0; i < count; i++) {
+          const start = ctx.currentTime + i * (dur + gap);
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 880;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(1.0, start + 0.02); // full level; user controls loudness via device volume
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          osc.start(start);
+          osc.stop(start + dur + 0.02);
+          if (i === count - 1) osc.onended = () => ctx.close();
+        }
       } catch (e) {
         console.error('Beep failed:', e);
       }
@@ -221,6 +226,14 @@
       if (alarmSet) cancelAlarm();
       else setAlarm();
     });
+
+    // Default the inputs to the current time on load.
+    (function initToNow() {
+      const now = new Date();
+      hh.value = pad(now.getHours());
+      mm.value = pad(now.getMinutes());
+      ss.value = pad(now.getSeconds());
+    })();
 
     tick();
     setInterval(tick, 250);
