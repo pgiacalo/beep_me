@@ -170,7 +170,7 @@
         gain.connect(ctx.destination);
         const t = ctx.currentTime;
         gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(1.0, t + 0.02); // full level; user controls loudness via device volume
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
         osc.start(t);
         osc.stop(t + 0.62);
