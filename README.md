@@ -16,6 +16,8 @@ https://pgiacalo.github.io/beep_me/
    - **10 seconds** before: 1 beep
 4. At the set time the app plays a 1-second tone and turns itself off.
 
+Check **Voice countdown** to also hear "30 seconds", "20 seconds", "10 seconds", and a spoken 5-4-3-2-1-zero (uses the browser's built-in speech synthesis; the setting is remembered).
+
 If the alarm is set less than 30 seconds out, any warnings already passed are skipped.
 
 Click **Cancel Alarm** any time to clear a pending alarm.

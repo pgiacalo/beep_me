@@ -85,6 +85,17 @@
     }
     button:hover { filter: brightness(1.08); }
     button.cancel { background: #ef4444; color: #fff; }
+    .voice {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .voice input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
     .status {
       margin-top: 1rem;
       min-height: 1.25rem;
@@ -117,6 +128,8 @@
       </div>
     </div>
 
+    <label class="voice"><input id="voice" type="checkbox" /> Voice countdown</label>
+
     <button id="toggle">Set Alarm</button>
     <div class="status" id="status">No alarm set</div>
   </div>
@@ -128,12 +141,15 @@
     const hh = document.getElementById('hh');
     const mm = document.getElementById('mm');
     const ss = document.getElementById('ss');
+    const voiceCb = document.getElementById('voice');
 
     let alarmSet = false;
     let targetH, targetM, targetS;
     // Countdown cues, keyed by seconds remaining: number of short beeps, or
     // 'tone' for the 1-second tone at the set time.
     const CUES = { 30: 3, 20: 2, 10: 1, 0: 'tone' };
+    // Extra spoken-only cues when "Voice countdown" is checked.
+    const VOICE_COUNTDOWN = [5, 4, 3, 2, 1];
     let firedCues = new Set(); // guard against firing a cue twice
 
     const pad = (n) => String(n).padStart(2, '0');
@@ -150,15 +166,47 @@
       const targetSec = targetH * 3600 + targetM * 60 + targetS;
       const remaining = (targetSec - nowSec + 86400) % 86400;
 
-      if (remaining in CUES && !firedCues.has(remaining)) {
+      if (firedCues.has(remaining)) return;
+      const voice = voiceCb.checked;
+
+      if (remaining in CUES) {
         firedCues.add(remaining);
         if (remaining === 0) {
+          if (voice) speak('zero');
           triggerAlarm();
         } else {
-          beep(CUES[remaining]);
+          const count = CUES[remaining];
+          beep(count);
+          // Speak after the beeps finish so they don't talk over each other.
+          if (voice) setTimeout(() => speak(`${remaining} seconds`), count * 250 + 100);
           statusEl.textContent = `⏳ ${remaining} seconds…`;
         }
+      } else if (voice && VOICE_COUNTDOWN.includes(remaining)) {
+        firedCues.add(remaining);
+        speak(String(remaining));
+        statusEl.textContent = `⏳ ${remaining}…`;
       }
+    }
+
+    // Speak `text` with the browser's built-in speech synthesis. Cancels any
+    // queued speech first so a slow voice never falls behind the clock.
+    function speak(text) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.1;
+        speechSynthesis.speak(u);
+      } catch (e) {
+        console.error('Speech failed:', e);
+      }
+    }
+
+    // iOS only allows speech after it has been started from a user gesture;
+    // speaking an empty utterance on the Set Alarm tap unlocks it.
+    function unlockSpeech() {
+      if (!('speechSynthesis' in window)) return;
+      try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { /* ignore */ }
     }
 
     function triggerAlarm() {
@@ -258,6 +306,7 @@
       // Unlock the shared audio context on this user gesture so the beep is
       // allowed to play later (required by mobile browsers).
       unlockAudio();
+      if (voiceCb.checked) unlockSpeech();
 
       targetH = h; targetM = m; targetS = s;
       hh.value = pad(h); mm.value = pad(m); ss.value = pad(s);
@@ -271,6 +320,7 @@
 
     function cancelAlarm() {
       alarmSet = false;
+      if ('speechSynthesis' in window) speechSynthesis.cancel();
       statusEl.textContent = 'Alarm canceled';
       statusEl.className = 'status';
       toggleBtn.textContent = 'Set Alarm';
@@ -280,6 +330,13 @@
     toggleBtn.addEventListener('click', () => {
       if (alarmSet) cancelAlarm();
       else setAlarm();
+    });
+
+    // Remember the voice checkbox between visits.
+    try { voiceCb.checked = localStorage.getItem('beepMeVoice') === '1'; } catch (e) { /* ignore */ }
+    voiceCb.addEventListener('change', () => {
+      try { localStorage.setItem('beepMeVoice', voiceCb.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+      if (voiceCb.checked) unlockSpeech();
     });
 
     // Default the inputs to the current time on load.
