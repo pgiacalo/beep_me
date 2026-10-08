@@ -1,6 +1,6 @@
 # Beep Me
 
-A very simple alarm clock web app. Set the alarm to the hour, minute, and second. When it triggers, it beeps once and automatically turns off.
+A very simple alarm clock web app. Set the alarm to the hour, minute, and second. It counts down with warning beeps, sounds a 1-second tone at the set time, and automatically turns off.
 
 ## Live site
 
@@ -10,7 +10,13 @@ https://pgiacalo.github.io/beep_me/
 
 1. Enter the **Hour** (0–23), **Minute** (0–59), and **Second** (0–59).
 2. Click **Set Alarm**.
-3. At the set time the app beeps once and turns itself off.
+3. Countdown warnings:
+   - **30 seconds** before: 3 beeps
+   - **20 seconds** before: 2 beeps
+   - **10 seconds** before: 1 beep
+4. At the set time the app plays a 1-second tone and turns itself off.
+
+If the alarm is set less than 30 seconds out, any warnings already passed are skipped.
 
 Click **Cancel Alarm** any time to clear a pending alarm.
 
